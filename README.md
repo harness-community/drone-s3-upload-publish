@@ -15,7 +15,7 @@ go build
 Build the Docker image with the following commands:
 
 ```
-./hacking/build.sh
+./scripts/build.sh
 docker buildx build -t DOCKER_ORG/drone-s3-upload-publish --platform linux/amd64 .
 ```
 
