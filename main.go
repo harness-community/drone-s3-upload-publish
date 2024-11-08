@@ -99,11 +99,13 @@ func run(c *cli.Context) error {
 		if target != "" {
 			argsList := []string{"s3", "cp", source, "s3://" + awsBucket + "/" + target + "/" + newFolder, "--region", awsDefaultRegion, "--recursive"}
 			argsList = append(argsList, includeArgsList...)
+			fmt.Println("aws ", argsList)
 			Uploadcmd = exec.Command("aws", argsList...)
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder + "/&showversions=false"
 		} else {
 			argsList := []string{"s3", "cp", source, "s3://" + awsBucket + "/" + newFolder + "/", "--region", awsDefaultRegion, "--recursive"}
 			argsList = append(argsList, includeArgsList...)
+			fmt.Println("aws ", argsList)
 			Uploadcmd = exec.Command("aws", argsList...)
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder + "/&showversions=false"
 		}
