@@ -57,6 +57,11 @@ func main() {
 			Usage:  "Artifact file",
 			EnvVar: "PLUGIN_ARTIFACT_FILE",
 		},
+		cli.StringFlag{
+			Name:   "include",
+			Usage:  "Include file patterns (comma-separated)",
+			EnvVar: "PLUGIN_INCLUDE",
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -73,6 +78,7 @@ func run(c *cli.Context) error {
 	target := c.String("target-path")
 	newFolder := filepath.Base(source)
 	artifactFilePath := c.String("artifact-file")
+	includeArgsList := GetIncludeArgsList(c.String("include"))
 	var urls string
 
 	if strings.ContainsAny(source, "*") {
@@ -91,10 +97,14 @@ func run(c *cli.Context) error {
 	var Uploadcmd *exec.Cmd
 	if fileType.IsDir() {
 		if target != "" {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/"+newFolder, "--region", awsDefaultRegion, "--recursive")
+			argsList := []string{"s3", "cp", source, "s3://" + awsBucket + "/" + target + "/" + newFolder, "--region", awsDefaultRegion, "--recursive"}
+			argsList = append(argsList, includeArgsList...)
+			Uploadcmd = exec.Command("aws", argsList...)
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder + "/&showversions=false"
 		} else {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+newFolder+"/", "--region", awsDefaultRegion, "--recursive")
+			argsList := []string{"s3", "cp", source, "s3://" + awsBucket + "/" + newFolder + "/", "--region", awsDefaultRegion, "--recursive"}
+			argsList = append(argsList, includeArgsList...)
+			Uploadcmd = exec.Command("aws", argsList...)
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder + "/&showversions=false"
 		}
 	} else {
@@ -118,4 +128,15 @@ func run(c *cli.Context) error {
 	files = append(files, File{Name: artifactFilePath, URL: urls})
 
 	return writeArtifactFile(files, artifactFilePath)
+}
+
+func GetIncludeArgsList(includePatterns string) []string {
+	var includeArgsList []string
+	if includePatterns != "" {
+		includeArgsList = append(includeArgsList, "--exclude", "*")
+		for _, pattern := range strings.Split(includePatterns, ",") {
+			includeArgsList = append(includeArgsList, "--include", strings.TrimSpace(pattern))
+		}
+	}
+	return includeArgsList
 }
