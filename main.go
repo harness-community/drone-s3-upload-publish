@@ -59,7 +59,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:   "include",
-			Usage:  "Include file patterns (comma-separated)",
+			Usage:  "Include file patterns int ant style glob style",
 			EnvVar: "PLUGIN_INCLUDE",
 		},
 	}
@@ -80,7 +80,6 @@ func run(c *cli.Context) error {
 	artifactFilePath := c.String("artifact-file")
 	includeFilesGlobStr := c.String("include")
 
-	includeArgsList := GetIncludeArgsList(includeFilesGlobStr)
 	var urls string
 
 	if strings.ContainsAny(source, "*") {
@@ -90,8 +89,10 @@ func run(c *cli.Context) error {
 	if includeFilesGlobStr != "" {
 		err := CopyFilesToS3WithGlobIncludes(c)
 		if err != nil {
+			log.Println("Error copying files to S3: ", err.Error())
 			return err
 		}
+		log.Println("All Files copied to S3 successfully!")
 		return nil
 	}
 
@@ -107,16 +108,10 @@ func run(c *cli.Context) error {
 	var Uploadcmd *exec.Cmd
 	if fileType.IsDir() {
 		if target != "" {
-			argsList := []string{"s3", "cp", source, "s3://" + awsBucket + "/" + target + "/" + newFolder, "--region", awsDefaultRegion, "--recursive"}
-			argsList = append(argsList, includeArgsList...)
-			fmt.Println("aws ", argsList)
-			Uploadcmd = exec.Command("aws", argsList...)
+			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/"+newFolder, "--region", awsDefaultRegion, "--recursive")
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder + "/&showversions=false"
 		} else {
-			argsList := []string{"s3", "cp", source, "s3://" + awsBucket + "/" + newFolder + "/", "--region", awsDefaultRegion, "--recursive"}
-			argsList = append(argsList, includeArgsList...)
-			fmt.Println("aws ", argsList)
-			Uploadcmd = exec.Command("aws", argsList...)
+			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+newFolder+"/", "--region", awsDefaultRegion, "--recursive")
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder + "/&showversions=false"
 		}
 	} else {
@@ -140,15 +135,4 @@ func run(c *cli.Context) error {
 	files = append(files, File{Name: artifactFilePath, URL: urls})
 
 	return writeArtifactFile(files, artifactFilePath)
-}
-
-func GetIncludeArgsList(includePatterns string) []string {
-	var includeArgsList []string
-	if includePatterns != "" {
-		includeArgsList = append(includeArgsList, "--exclude", "*")
-		for _, pattern := range strings.Split(includePatterns, ",") {
-			includeArgsList = append(includeArgsList, "--include", strings.TrimSpace(pattern))
-		}
-	}
-	return includeArgsList
 }

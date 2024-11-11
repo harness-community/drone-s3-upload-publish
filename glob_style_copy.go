@@ -50,8 +50,6 @@ func CopyFilesToS3WithGlobIncludes(c *cli.Context) error {
 	copyConfig := NewS3GlobCopyConfig(c, GetCopyBatchSize())
 	globArgsList := copyConfig.GetGlobArgsList()
 
-	fmt.Println("Glob args list: ", globArgsList)
-
 	if globArgsList == nil {
 		return errors.New("Invalid glob pattern")
 	}
@@ -81,13 +79,12 @@ func (c *S3GlobStyleCopy) GetGlobArgsList() []string {
 }
 
 func (c *S3GlobStyleCopy) GetMatchedFiles(pattern string) ([]string, error) {
-	logrus.Println("Copying files to S3 for pattern ", pattern)
 
 	sourceDir := os.DirFS(c.Source)
 
 	matchedFiles, err := doublestar.Glob(sourceDir, pattern)
 	if err != nil {
-		fmt.Println("matchedDirs Error: ", err.Error())
+		logrus.Println("matchedDirs Error: ", err.Error())
 		return []string{}, errors.New("Failed to match files")
 	}
 	return matchedFiles, nil
@@ -98,7 +95,7 @@ func (c *S3GlobStyleCopy) CopyFiles(sourceFilesList []string, batchSize uint64) 
 	numFiles := len(sourceFilesList)
 
 	if numFiles == 0 {
-		return fmt.Errorf("no files to copy")
+		return errors.New("No files to copy")
 	}
 
 	for i := 0; i < numFiles; i += int(batchSize) {
@@ -116,7 +113,7 @@ func (c *S3GlobStyleCopy) CopyFiles(sourceFilesList []string, batchSize uint64) 
 				defer wg.Done()
 				err := c.uploadToS3(file)
 				if err != nil {
-					fmt.Printf("Failed to upload %s: %v\n", file, err)
+					logrus.Printf("Failed to upload %s: %v\n", file, err)
 				}
 			}(sourceFile)
 		}
@@ -141,12 +138,11 @@ func (c *S3GlobStyleCopy) uploadToS3(sourceFile string) error {
 		"s3", "cp", absoluteSourceFilePath, s3Path,
 		"--region", c.AwsDefaultRegion,
 	}
-	fmt.Println("aws ", strings.Join(argsList, " "))
 
 	cmd := exec.Command("aws", argsList...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("Error copying %s to S3: %s\n", absoluteSourceFilePath, string(output))
+		logrus.Printf("Error copying %s to S3: %s\n", absoluteSourceFilePath, string(output))
 		return err
 	}
 
