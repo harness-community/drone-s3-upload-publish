@@ -69,6 +69,8 @@ func main() {
 	}
 }
 
+var execCommand = exec.Command
+
 func run(c *cli.Context) error {
 	awsAccessKey := c.String("aws-access-key")
 	awsSecretKey := c.String("aws-secret-key")
@@ -102,24 +104,24 @@ func run(c *cli.Context) error {
 	}
 
 	// AWS config commands to set ACCESS_KEY_ID and SECRET_ACCESS_KEY
-	exec.Command("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
-	exec.Command("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
+	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
+	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
 
 	var Uploadcmd *exec.Cmd
 	if fileType.IsDir() {
 		if target != "" {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/"+newFolder, "--region", awsDefaultRegion, "--recursive")
+			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/"+newFolder, "--region", awsDefaultRegion, "--recursive")
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder + "/&showversions=false"
 		} else {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+newFolder+"/", "--region", awsDefaultRegion, "--recursive")
+			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+newFolder+"/", "--region", awsDefaultRegion, "--recursive")
 			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder + "/&showversions=false"
 		}
 	} else {
 		if target != "" {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/", "--region", awsDefaultRegion)
+			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/", "--region", awsDefaultRegion)
 			urls = "https://s3.console.aws.amazon.com/s3/object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder
 		} else {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/", "--region", awsDefaultRegion)
+			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/", "--region", awsDefaultRegion)
 			urls = "https://s3.console.aws.amazon.com/s3/object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder
 		}
 	}
