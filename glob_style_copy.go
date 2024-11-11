@@ -23,9 +23,10 @@ type S3GlobStyleCopy struct {
 	NewFolder        string
 	ArtifactFilePath string
 	IncludeFilesGlob string
+	CopyBatchSize    uint64
 }
 
-func NewS3GlobCopyConfig(c *cli.Context) *S3GlobStyleCopy {
+func NewS3GlobCopyConfig(c *cli.Context, copyBatchSize uint64) *S3GlobStyleCopy {
 	source := c.String("source")
 
 	return &S3GlobStyleCopy{
@@ -38,12 +39,15 @@ func NewS3GlobCopyConfig(c *cli.Context) *S3GlobStyleCopy {
 		NewFolder:        filepath.Base(source),
 		ArtifactFilePath: c.String("artifact-file"),
 		IncludeFilesGlob: c.String("include"),
+		CopyBatchSize:    copyBatchSize,
 	}
 }
 
 func CopyFilesToS3WithGlobIncludes(c *cli.Context) error {
 
-	copyConfig := NewS3GlobCopyConfig(c)
+	var allMatchedFiles []string
+
+	copyConfig := NewS3GlobCopyConfig(c, GetCopyBatchSize())
 	globArgsList := copyConfig.GetGlobArgsList()
 
 	fmt.Println("Glob args list: ", globArgsList)
@@ -56,15 +60,19 @@ func CopyFilesToS3WithGlobIncludes(c *cli.Context) error {
 	}
 
 	for _, pattern := range globArgsList {
-		err := copyConfig.CopyFilesToS3(pattern)
+		tmpFilesList, err := copyConfig.GetMatchedFiles(pattern)
 		if err != nil {
 			return err
 		}
+
+		allMatchedFiles = append(allMatchedFiles, tmpFilesList...)
 	}
-	return nil
+
+	return copyConfig.CopyFiles(allMatchedFiles, 5)
 }
 
 func (c *S3GlobStyleCopy) GetGlobArgsList() []string {
+
 	patterns := strings.Split(c.IncludeFilesGlob, ",")
 	for i, pattern := range patterns {
 		patterns[i] = strings.TrimSpace(pattern)
@@ -72,7 +80,7 @@ func (c *S3GlobStyleCopy) GetGlobArgsList() []string {
 	return patterns
 }
 
-func (c *S3GlobStyleCopy) CopyFilesToS3(pattern string) error {
+func (c *S3GlobStyleCopy) GetMatchedFiles(pattern string) ([]string, error) {
 	logrus.Println("Copying files to S3 for pattern ", pattern)
 
 	sourceDir := os.DirFS(c.Source)
@@ -80,10 +88,9 @@ func (c *S3GlobStyleCopy) CopyFilesToS3(pattern string) error {
 	matchedFiles, err := doublestar.Glob(sourceDir, pattern)
 	if err != nil {
 		fmt.Println("matchedDirs Error: ", err.Error())
-		return errors.New("Failed to match files")
+		return []string{}, errors.New("Failed to match files")
 	}
-
-	return c.CopyFiles(matchedFiles, 5)
+	return matchedFiles, nil
 }
 
 func (c *S3GlobStyleCopy) CopyFiles(sourceFilesList []string, batchSize uint64) error {
@@ -124,9 +131,9 @@ func (c *S3GlobStyleCopy) uploadToS3(sourceFile string) error {
 	newFolder := c.NewFolder
 
 	if c.TargetPath != "" {
-		s3Path = fmt.Sprintf("s3://%s/%s/%s/%s", c.AwsBucket, c.TargetPath, newFolder, filepath.Base(sourceFile))
+		s3Path = fmt.Sprintf("s3://%s/%s/%s/%s", c.AwsBucket, c.TargetPath, newFolder, sourceFile)
 	} else {
-		s3Path = fmt.Sprintf("s3://%s/%s/%s", c.AwsBucket, newFolder, filepath.Base(sourceFile))
+		s3Path = fmt.Sprintf("s3://%s/%s/%s", c.AwsBucket, newFolder, sourceFile)
 	}
 
 	absoluteSourceFilePath := filepath.Join(c.Source, sourceFile)
@@ -134,11 +141,8 @@ func (c *S3GlobStyleCopy) uploadToS3(sourceFile string) error {
 		"s3", "cp", absoluteSourceFilePath, s3Path,
 		"--region", c.AwsDefaultRegion,
 	}
+	fmt.Println("aws ", strings.Join(argsList, " "))
 
-	fmt.Println("Executing command: aws", argsList)
-	fmt.Println("aws ", argsList)
-
-	// Execute the command
 	cmd := exec.Command("aws", argsList...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -146,6 +150,11 @@ func (c *S3GlobStyleCopy) uploadToS3(sourceFile string) error {
 		return err
 	}
 
-	fmt.Printf("Successfully uploaded %s to %s\n", absoluteSourceFilePath, s3Path)
 	return nil
+}
+
+const CopyBatchSize = 5
+
+func GetCopyBatchSize() uint64 {
+	return CopyBatchSize
 }
