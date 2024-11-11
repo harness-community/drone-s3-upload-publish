@@ -78,11 +78,21 @@ func run(c *cli.Context) error {
 	target := c.String("target-path")
 	newFolder := filepath.Base(source)
 	artifactFilePath := c.String("artifact-file")
-	includeArgsList := GetIncludeArgsList(c.String("include"))
+	includeFilesGlobStr := c.String("include")
+
+	includeArgsList := GetIncludeArgsList(includeFilesGlobStr)
 	var urls string
 
 	if strings.ContainsAny(source, "*") {
 		log.Fatal("Glob pattern not allowed!")
+	}
+
+	if includeFilesGlobStr != "" {
+		err := CopyFilesToS3WithGlobIncludes(c)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	fileType, err := os.Stat(source)
