@@ -57,6 +57,9 @@ func CopyFilesToS3WithGlobIncludes(c *cli.Context) error {
 		return errors.New("No files found")
 	}
 
+	exec.Command("aws", "configure", "set", "aws_access_key_id", copyConfig.AwsAccessKey).Run()
+	exec.Command("aws", "configure", "set", "aws_secret_access_key", copyConfig.AwsSecretKey).Run()
+
 	for _, pattern := range globArgsList {
 		tmpFilesList, err := copyConfig.GetMatchedFiles(pattern)
 		if err != nil {
