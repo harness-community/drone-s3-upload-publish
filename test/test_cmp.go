@@ -12,15 +12,18 @@ import (
 
 func main() {
 	checkCVS()
+	fmt.Println("\n\n")
 	checkJakarta()
+	fmt.Println("\n\n")
 	checkApacheCvs()
+	fmt.Println("\n\n")
 	checkAllTestsDir()
 }
 
 func checkTest(pattern string) {
-	fmt.Println("\n\n")
 	baseDirs := []string{
-		"/tmp/test-glob",
+		"./test-glob",
+		//"/tmp/test-glob",
 	}
 	args := Args{
 		TargetDir: baseDirs[0],
@@ -32,23 +35,29 @@ func checkTest(pattern string) {
 	doubleStar(baseDirs[0], pattern)
 	fmt.Println("================= ApplyFilterFindFileDefault =================")
 	ApplyFilterFindFileDefault(args)
-	fmt.Println("================= ApplyFilterFindFileDefaultFixed =================")
-	ApplyFilterFindFileDefaultFixed(baseDirs[0], pattern, "")
+	//fmt.Println("================= ApplyFilterFindFileDefaultFixed =================")
+	//ApplyFilterFindFileDefaultFixed(baseDirs[0], pattern, "")
 }
 
 func checkCVS() {
+	fmt.Println("********************* CVS test ***********************")
 	checkTest("**/CVS/*")
 }
 
 func checkJakarta() {
+	fmt.Println("********************* Jakarta test ***********************")
+
 	checkTest("org/apache/jakarta/**")
 }
 
 func checkApacheCvs() {
+	fmt.Println("********************* Apache CVS test ***********************")
+
 	checkTest("org/apache/**/CVS/*")
 }
 
 func checkAllTestsDir() {
+	fmt.Println("********************* All test Dirs ***********************")
 	checkTest("**/test/**")
 }
 
@@ -86,15 +95,11 @@ func ApplyFilterFindFileDefault(args Args) ([]FileInfo, error) {
 		args.TargetDir = "."
 	}
 
-	fmt.Println("args.TargetDir ", args.TargetDir)
-	fmt.Println("args.Filter ", args.Filter)
-
 	err := filepath.WalkDir(args.TargetDir, func(path string, d os.DirEntry, e error) error {
-		fmt.Println("args.Filter ", args.Filter, " path ", path)
+		//fmt.Println("args.Filter ", args.Filter, " path ", path)
 		if m.Match(args.Filter, path) {
-			fmt.Println("args.Filter ", args.Filter, " path ", path)
+			fmt.Println("eeee. ", path)
 			if m.Match(args.Excludes, path) {
-				fmt.Println("eeee. ", path)
 				//fmt.Printf("path %s match exclude criteria %s", path, args.Excludes)
 			} else {
 				file, err := getFileInfo(path)
@@ -112,52 +117,6 @@ func ApplyFilterFindFileDefault(args Args) ([]FileInfo, error) {
 		return []FileInfo{}, err
 	}
 
-	return files, nil
-}
-
-func ApplyFilterFindFileDefaultFixed(targetDir, filter, excludes string) ([]FileInfo, error) {
-	var files []FileInfo
-	m := antpathmatcher.NewAntPathMatcher()
-
-	if targetDir == "" {
-		targetDir = "."
-	}
-
-	fmt.Println("targetDir ", targetDir)
-	fmt.Println("filter ", filter)
-
-	err := filepath.WalkDir(
-		targetDir,
-		func(path string, d os.DirEntry, e error) error {
-			//fmt.Println("path ", path, " filter ", filter)
-
-			relativePath, _ := filepath.Rel(targetDir, path)
-			// relativePath = path
-			fmt.Println("filter ", filter, " relativePath ", relativePath)
-			if m.Match(filter, relativePath) {
-				fmt.Println("args.Filter ", filter, " path ", relativePath)
-
-				fmt.Println("wwww. ", relativePath)
-				if m.Match(excludes, path) {
-					fmt.Printf("path %s match exclude criteria %s", path, excludes)
-				} else {
-					file, err := getFileInfo(path)
-					if err != nil {
-						fmt.Printf("error to get file info of path %s", path)
-						return errors.New("Bad") // logError(logger, fmt.Sprintf("error to get file info of path %s", path), err)
-					}
-					files = append(files, file)
-				}
-			} else {
-				//fmt.Println("not matched ", path, " filter ", filter)
-			}
-			return nil
-		})
-
-	if err != nil {
-		return []FileInfo{}, err
-	}
-	fmt.Println("====================")
 	return files, nil
 }
 
