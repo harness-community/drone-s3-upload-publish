@@ -175,38 +175,3 @@ func getFileInfo(path string) (FileInfo, error) {
 		LastModified: fi.ModTime().Format(time.RFC3339),
 	}, nil
 }
-
-func ApplyFilter1(targetDir, filter, excludes string) ([]FileInfo, error) {
-	var files []FileInfo
-	m := antpathmatcher.NewAntPathMatcher()
-
-	if targetDir == "" {
-		targetDir = "."
-	}
-
-	err := filepath.WalkDir(
-		targetDir,
-		func(path string, d os.DirEntry, e error) error {
-			fmt.Println("path ", path, " filter ", filter)
-			if m.Match(filter, path) {
-				fmt.Println("***************0 matched ", path, " filter ", filter)
-				if m.Match(excludes, path) {
-					fmt.Printf("path %s match exclude criteria %s", path, excludes)
-				} else {
-					file, err := getFileInfo(path)
-					if err != nil {
-						fmt.Printf("error to get file info of path %s", path)
-						return errors.New("Bad")
-					}
-					files = append(files, file)
-				}
-			}
-			return nil
-		})
-
-	if err != nil {
-		return []FileInfo{}, err
-	}
-
-	return files, nil
-}
