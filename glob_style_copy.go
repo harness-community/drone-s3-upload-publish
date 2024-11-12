@@ -6,8 +6,8 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -41,35 +41,6 @@ func NewS3GlobCopyConfig(c *cli.Context, copyBatchSize uint64) *S3GlobStyleCopy 
 		IncludeFilesGlob: c.String("include"),
 		CopyBatchSize:    copyBatchSize,
 	}
-}
-
-func CopyFilesToS3WithGlobIncludes(c *cli.Context) error {
-
-	var allMatchedFiles []string
-
-	copyConfig := NewS3GlobCopyConfig(c, GetCopyBatchSize())
-	globArgsList := copyConfig.GetGlobArgsList()
-
-	if globArgsList == nil {
-		return errors.New("Invalid glob pattern")
-	}
-	if len(globArgsList) < 1 {
-		return errors.New("No files found")
-	}
-
-	exec.Command("aws", "configure", "set", "aws_access_key_id", copyConfig.AwsAccessKey).Run()
-	exec.Command("aws", "configure", "set", "aws_secret_access_key", copyConfig.AwsSecretKey).Run()
-
-	for _, pattern := range globArgsList {
-		tmpFilesList, err := copyConfig.GetMatchedFiles(pattern)
-		if err != nil {
-			return err
-		}
-
-		allMatchedFiles = append(allMatchedFiles, tmpFilesList...)
-	}
-
-	return copyConfig.CopyFiles(allMatchedFiles, 5)
 }
 
 func (c *S3GlobStyleCopy) GetGlobArgsList() []string {
@@ -136,16 +107,15 @@ func (c *S3GlobStyleCopy) uploadToS3(sourceFile string) error {
 		s3Path = fmt.Sprintf("s3://%s/%s/%s", c.AwsBucket, newFolder, sourceFile)
 	}
 
-	absoluteSourceFilePath := filepath.Join(c.Source, sourceFile)
-	argsList := []string{
-		"s3", "cp", absoluteSourceFilePath, s3Path,
-		"--region", c.AwsDefaultRegion,
+	absoluteSourcePath := filepath.Join(c.Source, sourceFile)
+	fileType, err := os.Stat(absoluteSourcePath)
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	cmd := exec.Command("aws", argsList...)
+	cmd := CopyToS3(absoluteSourcePath, s3Path, c.AwsDefaultRegion, fileType.IsDir())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		logrus.Printf("Error copying %s to S3: %s\n", absoluteSourceFilePath, string(output))
+		logrus.Printf("Error copying %s to S3: %s\n", absoluteSourcePath, string(output))
 		return err
 	}
 
@@ -157,3 +127,5 @@ const CopyBatchSize = 5
 func GetCopyBatchSize() uint64 {
 	return CopyBatchSize
 }
+
+//

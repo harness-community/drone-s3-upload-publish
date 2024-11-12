@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -88,6 +89,10 @@ func run(c *cli.Context) error {
 		log.Fatal("Glob pattern not allowed!")
 	}
 
+	// AWS config commands to set ACCESS_KEY_ID and SECRET_ACCESS_KEY
+	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
+	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
+
 	if includeFilesGlobStr != "" {
 		err := CopyFilesToS3WithGlobIncludes(c)
 		if err != nil {
@@ -102,10 +107,6 @@ func run(c *cli.Context) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// AWS config commands to set ACCESS_KEY_ID and SECRET_ACCESS_KEY
-	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
-	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
 
 	var Uploadcmd *exec.Cmd
 
@@ -145,8 +146,34 @@ func CopyToS3(source, s3Path, awsDefaultRegion string, isDir bool) *exec.Cmd {
 		cliArgs = append(cliArgs, "--recursive")
 	}
 
-	uploadcmd := execCommand("aws", cliArgs...)
-	return uploadcmd
+	uploadCmd := execCommand("aws", cliArgs...)
+	return uploadCmd
+}
+
+func CopyFilesToS3WithGlobIncludes(c *cli.Context) error {
+
+	var allMatchedFiles []string
+
+	copyConfig := NewS3GlobCopyConfig(c, GetCopyBatchSize())
+	globArgsList := copyConfig.GetGlobArgsList()
+
+	if globArgsList == nil {
+		return errors.New("Invalid glob pattern")
+	}
+	if len(globArgsList) < 1 {
+		return errors.New("No files found")
+	}
+
+	for _, pattern := range globArgsList {
+		tmpFilesList, err := copyConfig.GetMatchedFiles(pattern)
+		if err != nil {
+			return err
+		}
+
+		allMatchedFiles = append(allMatchedFiles, tmpFilesList...)
+	}
+
+	return copyConfig.CopyFiles(allMatchedFiles, 5)
 }
 
 const baseURL = "https://s3.console.aws.amazon.com/s3/"
