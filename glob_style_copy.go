@@ -55,7 +55,8 @@ func BatchCopyFiles(source string, sourceFilesList []string, targetPath, s3Bucke
 				defer wg.Done()
 				prefixedSrcPath := source + "/" + file //  filepath.Join(source, file)
 				dstPath := filepath.Base(prefixedSrcPath)
-				dstPath = replacePrefix(prefixedSrcPath, source, "")
+				topLevel := filepath.Base(source)
+				dstPath = topLevel + "/" + replacePrefix(prefixedSrcPath, source, "")
 				urls, err := CopyToS3(prefixedSrcPath, targetPath, dstPath, s3Bucket, defaultRegion)
 				if err != nil {
 					logrus.Printf("Failed to upload %s: %v\n", file, err)
