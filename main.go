@@ -107,33 +107,23 @@ func run(c *cli.Context) error {
 	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
 	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
 
-	//fmt.Println(awsAccessKey)
-	//fmt.Println(awsSecretKey)
-
 	var Uploadcmd *exec.Cmd
-	baseURL := "https://s3.console.aws.amazon.com/s3/"
+
 	prefixPath := awsBucket
 	if target != "" {
 		prefixPath += "/" + target
 	}
 
 	s3Path := "s3://" + prefixPath
-	recursive := ""
 	s3Path += "/" + newFolder
 
 	if fileType.IsDir() {
-		recursive = "--recursive"
 		urls = baseURL + "buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + prefixPath + "/" + newFolder + "/&showversions=false"
 	} else {
 		urls = baseURL + "object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + prefixPath + "/" + newFolder
 	}
 
-	cliArgs := []string{"s3", "cp", source, s3Path, "--region", awsDefaultRegion}
-	if fileType.IsDir() {
-		cliArgs = append(cliArgs, recursive)
-	}
-
-	Uploadcmd = execCommand("aws", cliArgs...)
+	Uploadcmd = CopyToS3(source, s3Path, awsDefaultRegion, fileType.IsDir())
 
 	out, err := Uploadcmd.Output()
 	if err != nil {
@@ -148,3 +138,18 @@ func run(c *cli.Context) error {
 
 	return writeArtifactFile(files, artifactFilePath)
 }
+
+func CopyToS3(source, s3Path, awsDefaultRegion string, isDir bool) *exec.Cmd {
+	cliArgs := []string{"s3", "cp", source, s3Path, "--region", awsDefaultRegion}
+	if isDir {
+		cliArgs = append(cliArgs, "--recursive")
+	}
+
+	uploadcmd := execCommand("aws", cliArgs...)
+	return uploadcmd
+}
+
+const baseURL = "https://s3.console.aws.amazon.com/s3/"
+
+//
+//
