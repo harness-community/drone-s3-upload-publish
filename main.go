@@ -1,15 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"errors"
+	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"errors"
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 )
 
 var (
@@ -59,9 +57,9 @@ func main() {
 			EnvVar: "PLUGIN_ARTIFACT_FILE",
 		},
 		cli.StringFlag{
-			Name:   "include",
+			Name:   "glob",
 			Usage:  "Include file patterns int ant style glob style",
-			EnvVar: "PLUGIN_INCLUDE",
+			EnvVar: "PLUGIN_GLOB",
 		},
 	}
 
@@ -133,10 +131,10 @@ func CopyToS3(source, target, newFolder, awsBucket, awsDefaultRegion string) (st
 
 	out, err := UploadCmd.Output()
 	if err != nil {
-		fmt.Println("Error uploading to S3: ", err.Error())
+		log.Println("Error uploading to S3: ", err.Error())
 		return urls, err
 	}
-	fmt.Printf("Output: %s\n", out)
+	log.Printf("Output: %s\n", out)
 	// End of S3 upload operation
 	return urls, nil
 }
@@ -165,7 +163,7 @@ func RunS3CliCopyCmd(source, s3Path, awsDefaultRegion string, isDir bool) *exec.
 		cliArgs = append(cliArgs, "--recursive")
 	}
 
-	fmt.Println("aws ", strings.Join(cliArgs, " "))
+	log.Println("aws ", strings.Join(cliArgs, " "))
 	uploadCmd := execCommand("aws", cliArgs...)
 	return uploadCmd
 }
