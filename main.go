@@ -123,10 +123,9 @@ func CopyToS3(source, target, newFolder, awsBucket, awsDefaultRegion string) (st
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	isDir := fileType.IsDir()
-
 	s3Path, _, urls := GetPathsAndURLs(target, newFolder, awsBucket, awsDefaultRegion, isDir)
-
 	UploadCmd := RunS3CliCopyCmd(source, s3Path, awsDefaultRegion, isDir)
 
 	out, err := UploadCmd.Output()
@@ -174,7 +173,6 @@ func CopyFilesToS3WithGlobIncludes(defaultRegion, s3Bucket, source, targetPath,
 	var allMatchedFiles []string
 
 	globArgsList := GetGlobArgsList(includesGlob)
-
 	if globArgsList == nil {
 		return []string{}, errors.New("Invalid glob pattern")
 	}
