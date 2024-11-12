@@ -79,7 +79,7 @@ func run(c *cli.Context) error {
 	target := c.String("target-path")
 	newFolder := filepath.Base(source)
 	artifactFilePath := c.String("artifact-file")
-	includeFilesGlobStr := c.String("include")
+	includeFilesGlobStr := c.String("glob")
 
 	if strings.ContainsAny(source, "*") {
 		log.Fatal("Glob pattern not allowed!")

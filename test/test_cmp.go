@@ -12,11 +12,8 @@ import (
 
 func main() {
 	checkCVS()
-	fmt.Println("\n\n")
 	checkJakarta()
-	fmt.Println("\n\n")
 	checkApacheCvs()
-	fmt.Println("\n\n")
 	checkAllTestsDir()
 }
 

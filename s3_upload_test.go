@@ -43,7 +43,7 @@ func TestRun_GeneratesCorrectArgs(t *testing.T) {
 	set.String("source", "./test", "Source")
 	set.String("target-path", "test-target", "Target path")
 	set.String("artifact-file", "artifact.txt", "Artifact file")
-	set.String("include", "", "Include patterns")
+	set.String("glob", "", "Include patterns")
 
 	context := cli.NewContext(app, set, nil)
 
@@ -64,33 +64,15 @@ func TestCopyFilesToS3WithGlobIncludes(t *testing.T) {
 	defer func() { execCommand = exec.Command }()
 	defer func() { capturedArgs = []string{} }()
 
-	set := flag.NewFlagSet("test", 0)
-	set.String("aws-access-key", "mock-access-key", "AWS Access Key")
-	set.String("aws-secret-key", "mock-secret-key", "AWS Secret Key")
-	set.String("aws-default-region", "mock-region", "AWS Region")
-	set.String("aws-bucket", "mock-bucket", "AWS Bucket")
-	set.String("source", "./test", "Source directory")
-	set.String("target-path", "test-target", "Target path")
-	set.String("artifact-file", "artifact.txt", "Artifact file")
-	set.String("include", "**/*.html, **/*.css", "Include patterns")
-
-	app := cli.NewApp()
-	context := cli.NewContext(app, set, nil)
+	globArgsList := GetGlobArgsList("**/*.html, **/*.css")
 
 	var allMatchedFiles []string
 
-	copyConfig := NewS3GlobCopyConfig(context, GetCopyBatchSize())
-	globArgsList := copyConfig.GetGlobArgsList()
-
-	exec.Command("aws", "configure", "set", "aws_access_key_id", copyConfig.AwsAccessKey).Run()
-	exec.Command("aws", "configure", "set", "aws_secret_access_key", copyConfig.AwsSecretKey).Run()
-
 	for _, pattern := range globArgsList {
-		tmpFilesList, err := copyConfig.GetMatchedFiles(pattern)
+		tmpFilesList, err := GetMatchedFiles("./test", pattern)
 		if err != nil {
-
+			t.Error("Failed to get matched files")
 		}
-
 		allMatchedFiles = append(allMatchedFiles, tmpFilesList...)
 	}
 
@@ -112,4 +94,33 @@ func TestCopyFilesToS3WithGlobIncludes(t *testing.T) {
 	for key := range expectedFilesMap {
 		assert.True(t, gotFilesMap[key])
 	}
+}
+
+func TestExecArgs(t *testing.T) {
+	execCommand = mockExecCommand
+	defer func() { execCommand = exec.Command }()
+	defer func() { capturedArgs = []string{} }()
+
+	app := cli.NewApp()
+	app.Action = run
+	set := flag.NewFlagSet("test", 0)
+	set.String("aws-access-key", "mock-access-key", "AWS Access Key ID")
+	set.String("aws-secret-key", "mock-secret-key", "AWS Secret Access Key")
+	set.String("aws-default-region", "ap-south-1", "AWS Default Region")
+	set.String("aws-bucket", "bfw-hns-test-bucket", "AWS S3 Bucket")
+	set.String("source", "./test", "Source")
+	set.String("target-path", "test-target", "Target path")
+	set.String("artifact-file", "artifact.txt", "Artifact file")
+	set.String("glob", "**/*.xhtml", "Include patterns")
+
+	context := cli.NewContext(app, set, nil)
+
+	err := run(context)
+	assert.NoError(t, err)
+
+	expectedArgs := []string{"aws", "s3", "cp", "./test/s3-copy-test-files/project_root/level1/level2/contact.xhtml",
+		"s3://bfw-hns-test-bucket/test-target/test/s3-copy-test-files/project_root/level1/level2/contact.xhtml",
+		"--region", "ap-south-1"}
+	assert.Equal(t, expectedArgs, capturedArgs)
+
 }
