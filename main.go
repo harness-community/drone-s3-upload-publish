@@ -107,27 +107,37 @@ func run(c *cli.Context) error {
 	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
 	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
 
+	//fmt.Println(awsAccessKey)
+	//fmt.Println(awsSecretKey)
+
 	var Uploadcmd *exec.Cmd
-	if fileType.IsDir() {
-		if target != "" {
-			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/"+newFolder, "--region", awsDefaultRegion, "--recursive")
-			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder + "/&showversions=false"
-		} else {
-			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+newFolder+"/", "--region", awsDefaultRegion, "--recursive")
-			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder + "/&showversions=false"
-		}
-	} else {
-		if target != "" {
-			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/", "--region", awsDefaultRegion)
-			urls = "https://s3.console.aws.amazon.com/s3/object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder
-		} else {
-			Uploadcmd = execCommand("aws", "s3", "cp", source, "s3://"+awsBucket+"/", "--region", awsDefaultRegion)
-			urls = "https://s3.console.aws.amazon.com/s3/object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder
-		}
+	baseURL := "https://s3.console.aws.amazon.com/s3/"
+	prefixPath := awsBucket
+	if target != "" {
+		prefixPath += "/" + target
 	}
+
+	s3Path := "s3://" + prefixPath
+	recursive := ""
+	s3Path += "/" + newFolder
+
+	if fileType.IsDir() {
+		recursive = "--recursive"
+		urls = baseURL + "buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + prefixPath + "/" + newFolder + "/&showversions=false"
+	} else {
+		urls = baseURL + "object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + prefixPath + "/" + newFolder
+	}
+
+	cliArgs := []string{"s3", "cp", source, s3Path, "--region", awsDefaultRegion}
+	if fileType.IsDir() {
+		cliArgs = append(cliArgs, recursive)
+	}
+
+	Uploadcmd = execCommand("aws", cliArgs...)
 
 	out, err := Uploadcmd.Output()
 	if err != nil {
+		fmt.Println("Error uploading to S3: ", err.Error())
 		return err
 	}
 	fmt.Printf("Output: %s\n", out)
