@@ -70,7 +70,7 @@ docker run --rm --network host \
   -e   PLUGIN_SOURCE=./test \
   -e   PLUGIN_ARTIFACT_FILE=url.txt \
   -e   PLUGIN_TARGET=test20241111503 \
-  -e   PLUGIN_INCLUDE='**/*.html, **/*.css' \
+  -e   PLUGIN_GLOB='**/*.html, **/*.css' \
   harnesscommunity/drone-s3-upload-publish
   ```
 In Harness CI, for include files with glob pattern Usage
@@ -88,7 +88,7 @@ In Harness CI, for include files with glob pattern Usage
                       aws_secret_access_key:  <+pipeline.variables.AWS_SECRET>
                       aws_bucket: hns-test-bucket
                       aws_default_region: ap-southeast-2
-                      include: "**/*.html, **/*.css"
+                      glob: "**/*.html, **/*.css"
                       source: ./test
                       target: test2014am23_css_html_only
 ```
@@ -112,7 +112,7 @@ GLOBAL OPTIONS:
    --source value              Source [$PLUGIN_SOURCE]
    --target-path value         target [$PLUGIN_TARGET]
    --artifact-file value       Artifact file [$PLUGIN_ARTIFACT_FILE]
-   --include value             Include file patterns int ant style glob style [$PLUGIN_INCLUDE]
+   --glob value                Include file patterns int ant style glob style [$PLUGIN_INCLUDE]
    --help, -h                  show help
    --version, -v               print the version
 ...

@@ -53,7 +53,7 @@ func BatchCopyFiles(source string, sourceFilesList []string, targetPath, s3Bucke
 			wg.Add(1)
 			go func(file string) {
 				defer wg.Done()
-				prefixedSrcPath := source + "/" + file //  filepath.Join(source, file)
+				prefixedSrcPath := source + "/" + file
 				dstPath := filepath.Base(prefixedSrcPath)
 				topLevel := filepath.Base(source)
 				dstPath = topLevel + "/" + replacePrefix(prefixedSrcPath, source, "")
