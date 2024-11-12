@@ -90,33 +90,33 @@ func run(c *cli.Context) error {
 	// AWS config commands to set ACCESS_KEY_ID and SECRET_ACCESS_KEY
 	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
 	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
+
 	urls := ""
 	urlsList := []string{}
-	_ = urlsList
 	var err error
+	var urlArtifactFiles []File
 
 	switch {
-	case includeFilesGlobStr != "":
-		{
-			urlsList, err = CopyFilesToS3WithGlobIncludes(awsDefaultRegion, awsBucket, source, target,
-				includeFilesGlobStr)
-			if err != nil {
-				log.Println("Error copying files to S3: ", err.Error())
-				return err
-			}
-			log.Println("All Files copied to S3 successfully!")
-			return nil
+	case includeFilesGlobStr != "": // Glob copy
+		urlsList, err = CopyFilesToS3WithGlobIncludes(awsDefaultRegion, awsBucket, source, target, includeFilesGlobStr)
+		if err != nil {
+			log.Println("Error copying files to S3: ", err.Error())
+			return err
 		}
-	default:
+		for _, url := range urlsList {
+			urlArtifactFiles = append(urlArtifactFiles, File{Name: artifactFilePath, URL: url})
+		}
+
+	default: // Single file or directory copy
 		urls, err = CopyToS3(source, target, newFolder, awsBucket, awsDefaultRegion)
 		if err != nil {
 			log.Println("Error copying files to S3: ", err.Error())
 			return err
 		}
-		files := make([]File, 0)
-		files = append(files, File{Name: artifactFilePath, URL: urls})
-		return writeArtifactFile(files, artifactFilePath)
+		urlArtifactFiles = append(urlArtifactFiles, File{Name: artifactFilePath, URL: urls})
 	}
+
+	return writeArtifactFile(urlArtifactFiles, artifactFilePath)
 }
 
 func CopyToS3(source, target, newFolder, awsBucket, awsDefaultRegion string) (string, error) {
