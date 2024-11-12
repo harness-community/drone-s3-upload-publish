@@ -30,10 +30,10 @@ func checkTest(pattern string) {
 
 	fmt.Println("================= double star =================")
 	doubleStar(baseDirs[0], pattern)
-	fmt.Println("================= ApplyFilter1 =================")
-	ApplyFilter0(args)
-	fmt.Println("================= ApplyFilter2 =================")
-	ApplyFilter2(baseDirs[0], pattern, "")
+	fmt.Println("================= ApplyFilterFindFileDefault =================")
+	ApplyFilterFindFileDefault(args)
+	fmt.Println("================= ApplyFilterFindFileDefaultFixed =================")
+	ApplyFilterFindFileDefaultFixed(baseDirs[0], pattern, "")
 }
 
 func checkCVS() {
@@ -78,7 +78,7 @@ type Args struct {
 	Excludes  string
 }
 
-func ApplyFilter0(args Args) ([]FileInfo, error) {
+func ApplyFilterFindFileDefault(args Args) ([]FileInfo, error) {
 	var files []FileInfo
 	m := antpathmatcher.NewAntPathMatcher()
 
@@ -86,9 +86,13 @@ func ApplyFilter0(args Args) ([]FileInfo, error) {
 		args.TargetDir = "."
 	}
 
-	err := filepath.WalkDir(args.TargetDir, func(path string, d os.DirEntry, e error) error {
+	fmt.Println("args.TargetDir ", args.TargetDir)
+	fmt.Println("args.Filter ", args.Filter)
 
+	err := filepath.WalkDir(args.TargetDir, func(path string, d os.DirEntry, e error) error {
+		fmt.Println("args.Filter ", args.Filter, " path ", path)
 		if m.Match(args.Filter, path) {
+			fmt.Println("args.Filter ", args.Filter, " path ", path)
 			if m.Match(args.Excludes, path) {
 				fmt.Println("eeee. ", path)
 				//fmt.Printf("path %s match exclude criteria %s", path, args.Excludes)
@@ -111,13 +115,16 @@ func ApplyFilter0(args Args) ([]FileInfo, error) {
 	return files, nil
 }
 
-func ApplyFilter2(targetDir, filter, excludes string) ([]FileInfo, error) {
+func ApplyFilterFindFileDefaultFixed(targetDir, filter, excludes string) ([]FileInfo, error) {
 	var files []FileInfo
 	m := antpathmatcher.NewAntPathMatcher()
 
 	if targetDir == "" {
 		targetDir = "."
 	}
+
+	fmt.Println("targetDir ", targetDir)
+	fmt.Println("filter ", filter)
 
 	err := filepath.WalkDir(
 		targetDir,
@@ -126,8 +133,10 @@ func ApplyFilter2(targetDir, filter, excludes string) ([]FileInfo, error) {
 
 			relativePath, _ := filepath.Rel(targetDir, path)
 			// relativePath = path
-
+			fmt.Println("filter ", filter, " relativePath ", relativePath)
 			if m.Match(filter, relativePath) {
+				fmt.Println("args.Filter ", filter, " path ", relativePath)
+
 				fmt.Println("wwww. ", relativePath)
 				if m.Match(excludes, path) {
 					fmt.Printf("path %s match exclude criteria %s", path, excludes)
