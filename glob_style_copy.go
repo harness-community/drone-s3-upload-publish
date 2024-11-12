@@ -2,13 +2,9 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -26,26 +22,9 @@ type S3GlobStyleCopy struct {
 	CopyBatchSize    uint64
 }
 
-func NewS3GlobCopyConfig(c *cli.Context, copyBatchSize uint64) *S3GlobStyleCopy {
-	source := c.String("source")
+func GetGlobArgsList(includeFilesGlob string) []string {
 
-	return &S3GlobStyleCopy{
-		AwsAccessKey:     c.String("aws-access-key"),
-		AwsSecretKey:     c.String("aws-secret-key"),
-		AwsDefaultRegion: c.String("aws-default-region"),
-		AwsBucket:        c.String("aws-bucket"),
-		Source:           source,
-		TargetPath:       c.String("target-path"),
-		NewFolder:        filepath.Base(source),
-		ArtifactFilePath: c.String("artifact-file"),
-		IncludeFilesGlob: c.String("include"),
-		CopyBatchSize:    copyBatchSize,
-	}
-}
-
-func (c *S3GlobStyleCopy) GetGlobArgsList() []string {
-
-	patterns := strings.Split(c.IncludeFilesGlob, ",")
+	patterns := strings.Split(includeFilesGlob, ",")
 	for i, pattern := range patterns {
 		patterns[i] = strings.TrimSpace(pattern)
 	}
@@ -85,38 +64,14 @@ func (c *S3GlobStyleCopy) CopyFiles(sourceFilesList []string, batchSize uint64) 
 			wg.Add(1)
 			go func(file string) {
 				defer wg.Done()
-				err := c.uploadToS3(file)
+				urls, err := CopyToS3(file, c.TargetPath, c.NewFolder, c.AwsBucket, c.AwsDefaultRegion, false)
 				if err != nil {
 					logrus.Printf("Failed to upload %s: %v\n", file, err)
 				}
+				_ = urls
 			}(sourceFile)
 		}
 		wg.Wait()
-	}
-
-	return nil
-}
-
-func (c *S3GlobStyleCopy) uploadToS3(sourceFile string) error {
-	var s3Path string
-	newFolder := c.NewFolder
-
-	if c.TargetPath != "" {
-		s3Path = fmt.Sprintf("s3://%s/%s/%s/%s", c.AwsBucket, c.TargetPath, newFolder, sourceFile)
-	} else {
-		s3Path = fmt.Sprintf("s3://%s/%s/%s", c.AwsBucket, newFolder, sourceFile)
-	}
-
-	absoluteSourcePath := filepath.Join(c.Source, sourceFile)
-	fileType, err := os.Stat(absoluteSourcePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	cmd := CopyToS3(absoluteSourcePath, s3Path, c.AwsDefaultRegion, fileType.IsDir())
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logrus.Printf("Error copying %s to S3: %s\n", absoluteSourcePath, string(output))
-		return err
 	}
 
 	return nil
