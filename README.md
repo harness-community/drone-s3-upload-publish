@@ -81,7 +81,7 @@ In Harness CI, for include files with glob pattern Usage
                   identifier: html_publish_step
                   spec:
                     connectorRef: Docker_Hub_Anonymous
-                    image: senthilhns/html_publish_01:latest
+                    image: harnesscommunity/drone-s3-upload-publish
                     settings:
                       artifact_file: artifact.txt
                       aws_access_key_id:  <+pipeline.variables.AWS_ACCESS>
