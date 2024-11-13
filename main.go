@@ -1,14 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"errors"
+	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 )
 
 var (
@@ -57,12 +56,19 @@ func main() {
 			Usage:  "Artifact file",
 			EnvVar: "PLUGIN_ARTIFACT_FILE",
 		},
+		cli.StringFlag{
+			Name:   "glob",
+			Usage:  "Include file patterns int ant style glob style",
+			EnvVar: "PLUGIN_GLOB",
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
+
+var execCommand = exec.Command
 
 func run(c *cli.Context) error {
 	awsAccessKey := c.String("aws-access-key")
@@ -73,49 +79,119 @@ func run(c *cli.Context) error {
 	target := c.String("target-path")
 	newFolder := filepath.Base(source)
 	artifactFilePath := c.String("artifact-file")
-	var urls string
+	includeFilesGlobStr := c.String("glob")
 
 	if strings.ContainsAny(source, "*") {
 		log.Fatal("Glob pattern not allowed!")
 	}
+
+	// AWS config commands to set ACCESS_KEY_ID and SECRET_ACCESS_KEY
+	execCommand("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
+	execCommand("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
+
+	urls := ""
+	urlsList := []string{}
+	var err error
+	var urlArtifactFiles []File
+
+	switch {
+	case includeFilesGlobStr != "": // Glob copy
+		urlsList, err = CopyFilesToS3WithGlobIncludes(awsDefaultRegion, awsBucket, source, target, includeFilesGlobStr)
+		if err != nil {
+			log.Println("Error copying files to S3: ", err.Error())
+			return err
+		}
+		for _, url := range urlsList {
+			urlArtifactFiles = append(urlArtifactFiles, File{Name: artifactFilePath, URL: url})
+		}
+
+	default: // Single file or directory copy
+		urls, err = CopyToS3(source, target, newFolder, awsBucket, awsDefaultRegion)
+		if err != nil {
+			log.Println("Error copying files to S3: ", err.Error())
+			return err
+		}
+		urlArtifactFiles = append(urlArtifactFiles, File{Name: artifactFilePath, URL: urls})
+	}
+
+	return writeArtifactFile(urlArtifactFiles, artifactFilePath)
+}
+
+func CopyToS3(source, target, newFolder, awsBucket, awsDefaultRegion string) (string, error) {
 
 	fileType, err := os.Stat(source)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// AWS config commands to set ACCESS_KEY_ID and SECRET_ACCESS_KEY
-	exec.Command("aws", "configure", "set", "aws_access_key_id", awsAccessKey).Run()
-	exec.Command("aws", "configure", "set", "aws_secret_access_key", awsSecretKey).Run()
+	isDir := fileType.IsDir()
+	s3Path, _, urls := GetPathsAndURLs(target, newFolder, awsBucket, awsDefaultRegion, isDir)
+	UploadCmd := RunS3CliCopyCmd(source, s3Path, awsDefaultRegion, isDir)
 
-	var Uploadcmd *exec.Cmd
-	if fileType.IsDir() {
-		if target != "" {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/"+newFolder, "--region", awsDefaultRegion, "--recursive")
-			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder + "/&showversions=false"
-		} else {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+newFolder+"/", "--region", awsDefaultRegion, "--recursive")
-			urls = "https://s3.console.aws.amazon.com/s3/buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder + "/&showversions=false"
-		}
-	} else {
-		if target != "" {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/"+target+"/", "--region", awsDefaultRegion)
-			urls = "https://s3.console.aws.amazon.com/s3/object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + target + "/" + newFolder
-		} else {
-			Uploadcmd = exec.Command("aws", "s3", "cp", source, "s3://"+awsBucket+"/", "--region", awsDefaultRegion)
-			urls = "https://s3.console.aws.amazon.com/s3/object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + newFolder
-		}
-	}
-
-	out, err := Uploadcmd.Output()
+	out, err := UploadCmd.Output()
 	if err != nil {
-		return err
+		log.Println("Error uploading to S3: ", err.Error())
+		return urls, err
 	}
-	fmt.Printf("Output: %s\n", out)
+	log.Printf("Output: %s\n", out)
 	// End of S3 upload operation
-
-	files := make([]File, 0)
-	files = append(files, File{Name: artifactFilePath, URL: urls})
-
-	return writeArtifactFile(files, artifactFilePath)
+	return urls, nil
 }
+
+func GetPathsAndURLs(target, newFolder, awsBucket, awsDefaultRegion string, isDir bool) (string, string, string) {
+	urls := ""
+	prefixPath := awsBucket
+	if target != "" {
+		prefixPath += "/" + target
+	}
+
+	s3Path := "s3://" + prefixPath
+	s3Path += "/" + newFolder
+
+	if isDir {
+		urls = baseURL + "buckets/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + prefixPath + "/" + newFolder + "/&showversions=false"
+	} else {
+		urls = baseURL + "object/" + awsBucket + "?region=" + awsDefaultRegion + "&prefix=" + prefixPath + "/" + newFolder
+	}
+	return s3Path, prefixPath, urls
+}
+
+func RunS3CliCopyCmd(source, s3Path, awsDefaultRegion string, isDir bool) *exec.Cmd {
+	cliArgs := []string{"s3", "cp", source, s3Path, "--region", awsDefaultRegion}
+	if isDir {
+		cliArgs = append(cliArgs, "--recursive")
+	}
+
+	log.Println("aws ", strings.Join(cliArgs, " "))
+	uploadCmd := execCommand("aws", cliArgs...)
+	return uploadCmd
+}
+
+func CopyFilesToS3WithGlobIncludes(defaultRegion, s3Bucket, source, targetPath,
+	includesGlob string) ([]string, error) {
+
+	var allMatchedFiles []string
+
+	globArgsList := GetGlobArgsList(includesGlob)
+	if globArgsList == nil {
+		return []string{}, errors.New("Invalid glob pattern")
+	}
+	if len(globArgsList) < 1 {
+		return []string{}, errors.New("No files found")
+	}
+
+	for _, pattern := range globArgsList {
+		tmpFilesList, err := GetMatchedFiles(source, pattern)
+		if err != nil {
+			return []string{}, err
+		}
+		allMatchedFiles = append(allMatchedFiles, tmpFilesList...)
+	}
+
+	return BatchCopyFiles(source, allMatchedFiles, targetPath, s3Bucket, defaultRegion, GetCopyBatchSize())
+}
+
+const baseURL = "https://s3.console.aws.amazon.com/s3/"
+
+//
+//
